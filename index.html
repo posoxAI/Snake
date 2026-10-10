@@ -1,0 +1,721 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+<title>Змейка</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Manrope:wght@500;600;700;800&display=swap">
+<style>
+  /* Layout: an old phone's monochrome LCD. By day the screen is unlit grey-green on a pale case; by night the case is dark
+     and the screen glows with its yellow-green backlight. Pixel type only for the name and the numbers. */
+  :root {
+    --bg: #E2E5DA;
+    --ink: #1B2116;
+    --muted: #5B6452;
+    --line: #C1C8B4;
+    --accent: #33461F;
+    --on-accent: #EEF3E2;
+    --lcd: #A9B98E;
+    --lcd-edge: #8E9E74;
+    --pixel: #1D2817;
+    --ghost: rgba(29, 40, 23, 0.075);
+    --plate: rgba(29, 40, 23, 0.88);
+    --plate-ink: #DCE7C6;
+    --pixelfont: "Press Start 2P", "Courier New", ui-monospace, monospace;
+    --body: "Manrope", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15181B;
+      --ink: #E4E8DE;
+      --muted: #98A190;
+      --line: #2C3237;
+      --accent: #B9D88A;
+      --on-accent: #17200F;
+      --lcd: #B4D37E;
+      --lcd-edge: #7E9A55;
+      --pixel: #18240F;
+      --ghost: rgba(24, 36, 15, 0.08);
+      --plate: rgba(24, 36, 15, 0.9);
+      --plate-ink: #D4ECA8;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15181B;
+    --ink: #E4E8DE;
+    --muted: #98A190;
+    --line: #2C3237;
+    --accent: #B9D88A;
+    --on-accent: #17200F;
+    --lcd: #B4D37E;
+    --lcd-edge: #7E9A55;
+    --pixel: #18240F;
+    --ghost: rgba(24, 36, 15, 0.08);
+    --plate: rgba(24, 36, 15, 0.9);
+    --plate-ink: #D4ECA8;
+    color-scheme: dark;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.45;
+    padding-inline: 16px;
+    padding-block: 14px 22px;
+  }
+  .app {
+    width: min(100%, 520px, max(280px, calc(100vh - 250px)));
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  /* with the on-screen pad below the screen the square has to leave it room */
+  @media (pointer: coarse), (max-width: 620px) {
+    .app { width: min(100%, 460px, max(260px, calc(100vh - 400px))); }
+  }
+  button { font: inherit; color: inherit; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 10px 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-family: var(--pixelfont); font-weight: 400; font-size: 20px; line-height: 1.2; letter-spacing: 0.02em; }
+  .btn {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 5px 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn.armed, .seg button.armed { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+
+  .stats { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
+  .stat { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .stat.side { align-items: flex-end; text-align: right; }
+  .stat-l { font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .stat-n { font-family: var(--pixelfont); font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .stat-n.small { font-size: 15px; }
+
+  .screen {
+    padding: 8px;
+    border-radius: 10px;
+    background: var(--lcd-edge);
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+  .screen:focus { outline: none; }
+  .screen.kb:focus { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .screen canvas { display: block; width: 100%; max-width: 100%; border-radius: 4px; touch-action: none; }
+
+  .status { margin: 0; min-height: 1.45em; font-weight: 700; }
+
+  .pad {
+    display: none;
+    grid-template-columns: repeat(3, 64px);
+    grid-template-rows: repeat(3, 52px);
+    gap: 6px;
+    justify-content: center;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  @media (pointer: coarse), (max-width: 620px) { .pad { display: grid; } }
+  .pad button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pad button:active, .pad button.hit { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .pad svg { width: 22px; height: 22px; fill: currentColor; }
+  .pad .up { grid-column: 2; grid-row: 1; }
+  .pad .left { grid-column: 1; grid-row: 2; }
+  .pad .mid { grid-column: 2; grid-row: 2; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+  .pad .right { grid-column: 3; grid-row: 2; }
+  .pad .down { grid-column: 2; grid-row: 3; }
+
+  .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+  .seg button { font-size: 14px; font-weight: 700; color: var(--muted); background: none; border: 0; padding: 5px 10px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); }
+  .seg button:focus-visible { outline-offset: -2px; }
+  .seg.lang { margin-left: auto; }
+  .seg.lang button { font-size: 13px; font-weight: 800; letter-spacing: 0.04em; }
+  .note { margin: 0; color: var(--muted); font-size: 14px; }
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <h1 id="title">Змейка</h1>
+    <button class="btn" id="newGame" type="button">Новая игра</button>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><span class="stat-l" id="scoreL">Счёт</span><span class="stat-n" id="score">0</span></div>
+    <div class="stat side"><span class="stat-l" id="lenL">Длина</span><span class="stat-n small" id="len">3</span></div>
+    <div class="stat side"><span class="stat-l" id="bestL">Рекорд</span><span class="stat-n small" id="best">0</span></div>
+  </div>
+
+  <div class="screen" id="screen" tabindex="0" role="application" aria-label="Игровое поле">
+    <canvas id="cv"></canvas>
+  </div>
+
+  <p class="status" id="status" aria-live="polite"></p>
+
+  <div class="pad" id="pad">
+    <button class="up" type="button" data-dir="0" aria-label="Вверх"><svg viewBox="0 0 24 24"><path d="M12 5 4 17h16z"/></svg></button>
+    <button class="left" type="button" data-dir="3" aria-label="Влево"><svg viewBox="0 0 24 24"><path d="M5 12 17 4v16z"/></svg></button>
+    <button class="mid" type="button" id="padPause">Пауза</button>
+    <button class="right" type="button" data-dir="1" aria-label="Вправо"><svg viewBox="0 0 24 24"><path d="M19 12 7 4v16z"/></svg></button>
+    <button class="down" type="button" data-dir="2" aria-label="Вниз"><svg viewBox="0 0 24 24"><path d="M12 19 4 7h16z"/></svg></button>
+  </div>
+
+  <div class="controls">
+    <span class="seg" role="group" id="speedSeg" aria-label="Скорость">
+      <button type="button" id="spSlow" aria-pressed="false">Медленно</button>
+      <button type="button" id="spNormal" aria-pressed="true">Обычно</button>
+      <button type="button" id="spFast" aria-pressed="false">Быстро</button>
+    </span>
+    <button class="btn" id="walls" type="button" aria-pressed="true">Стены: есть</button>
+    <button class="btn" id="sound" type="button" aria-pressed="true">Звук: вкл</button>
+    <span class="seg lang" role="group" aria-label="Язык / Language">
+      <button type="button" id="langRu" aria-pressed="true">RU</button>
+      <button type="button" id="langEn" aria-pressed="false">EN</button>
+    </span>
+  </div>
+
+  <p class="note" id="note"></p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var N = 17, CELL = 20, W = N * CELL;                  // the field: 17 by 17 cells
+  var BASE = { slow: 3, normal: 5, fast: 8 };          // cells per second at the start
+  var SPEED_STEP = 0.08, SPEED_MAX = 14;               // every apple adds a little speed
+  var BONUS_EVERY = 5, BONUS_TIME = 6, BONUS_POINTS = 5;
+  var DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];          // up, right, down, left
+
+  var $ = function (id) { return document.getElementById(id); };
+  var elScreen = $('screen'), cv = $('cv'), ctx = cv.getContext('2d'), elStatus = $('status');
+
+  /* ---------- storage (optional) ---------- */
+  function load(key, fallback) {
+    try { var v = localStorage.getItem(key); return v === null ? fallback : v; } catch (e) { return fallback; }
+  }
+  function save(key, value) {
+    try { localStorage.setItem(key, String(value)); } catch (e) { /* storage is optional */ }
+  }
+
+  /* ---------- language ---------- */
+  var STR = {
+    ru: {
+      title: 'Змейка', newGame: 'Новая игра', score: 'Счёт', len: 'Длина', best: 'Рекорд',
+      field: 'Игровое поле. Стрелки или W, A, S, D поворачивают змейку, пробел ставит паузу',
+      up: 'Вверх', down: 'Вниз', left: 'Влево', right: 'Вправо', pause: 'Пауза', go: 'Пуск',
+      speed: 'Скорость', slow: 'Медленно', normal: 'Обычно', fast: 'Быстро',
+      wallsOn: 'Стены: есть', wallsOff: 'Стены: нет', soundOn: 'Звук: вкл', soundOff: 'Звук: выкл',
+      ready: 'Нажмите стрелку или проведите пальцем по полю, чтобы начать.',
+      play: 'Ешьте яблоки и не врезайтесь в себя.', playWrap: 'Ешьте яблоки. Сквозь край поля можно проходить.',
+      bonus: 'Появился бонус: {n} очков, пока не исчез.',
+      paused: 'Пауза. Пробел или любая стрелка продолжает игру.', resumed: 'Партия сохранена, счёт {n}. Нажмите стрелку, чтобы продолжить.',
+      overWall: 'Змейка врезалась в стену. Счёт {n}.', overSelf: 'Змейка укусила себя. Счёт {n}.', overBest: ' Это новый рекорд.',
+      won: 'Змейка заняла всё поле. Счёт {n}.',
+      confirm: 'Счёт {n} сбросится. Нажмите ещё раз, чтобы подтвердить.',
+      plStart: 'Нажмите, чтобы начать', plStartSub: 'или стрелку на клавиатуре', plPause: 'Пауза', plPauseSub: 'Нажмите, чтобы продолжить',
+      plOver: 'Игра окончена', plWon: 'Поле занято', plAgain: 'Нажмите для новой игры',
+      note: 'Клавиатура: стрелки или W, A, S, D, пробел ставит паузу. Телефон: проведите пальцем по полю в нужную сторону или нажимайте крестовину под полем. Каждое яблоко даёт очко, удлиняет змейку и немного ускоряет её. После каждого пятого яблока на несколько секунд появляется мигающий бонус на 5 очков. Без стен змейка проходит сквозь край поля и выходит с другой стороны. Рекорд считается отдельно для каждой скорости и режима стен.'
+    },
+    en: {
+      title: 'Snake', newGame: 'New game', score: 'Score', len: 'Length', best: 'Best',
+      field: 'Playing field. Arrow keys or W, A, S, D turn the snake, Space pauses',
+      up: 'Up', down: 'Down', left: 'Left', right: 'Right', pause: 'Pause', go: 'Go',
+      speed: 'Speed', slow: 'Slow', normal: 'Normal', fast: 'Fast',
+      wallsOn: 'Walls: on', wallsOff: 'Walls: off', soundOn: 'Sound: on', soundOff: 'Sound: off',
+      ready: 'Press an arrow key or swipe on the field to start.',
+      play: 'Eat the apples and do not run into yourself.', playWrap: 'Eat the apples. You can go through the edge of the field.',
+      bonus: 'A bonus is up: {n} points while it lasts.',
+      paused: 'Paused. Space or any arrow goes on.', resumed: 'Your game is saved, score {n}. Press an arrow to go on.',
+      overWall: 'The snake hit the wall. Score {n}.', overSelf: 'The snake bit itself. Score {n}.', overBest: ' A new best.',
+      won: 'The snake fills the whole field. Score {n}.',
+      confirm: 'The score {n} will be reset. Press again to confirm.',
+      plStart: 'Tap or click to start', plStartSub: 'or press an arrow key', plPause: 'Paused', plPauseSub: 'Tap or click to go on',
+      plOver: 'Game over', plWon: 'Field full', plAgain: 'Tap or click for a new game',
+      note: 'Keyboard: arrow keys or W, A, S, D, Space pauses. Phone: swipe on the field the way to go, or use the pad below it. Every apple scores a point, makes the snake longer and a little faster. After every fifth apple a blinking bonus worth 5 points appears for a few seconds. With the walls off the snake goes through the edge and comes out on the other side. The best score is kept for each speed and wall setting.'
+    }
+  };
+  // a saved choice wins; otherwise Russian for anyone who lists it among their browser languages
+  function pickLang() {
+    var saved = load('snake-lang', '');
+    if (saved === 'ru' || saved === 'en') return saved;
+    var list = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || 'en'];
+    for (var k = 0; k < list.length; k++) if (String(list[k]).toLowerCase().indexOf('ru') === 0) return 'ru';
+    return 'en';
+  }
+  var lang = pickLang();
+  function tr(key, params) {
+    var text = STR[lang][key];
+    if (params) for (var k in params) text = text.replace('{' + k + '}', params[k]);
+    return text;
+  }
+  var lastSay = ['ready', null], lastExtra = '';
+  function say(key, params, extra) {
+    lastSay = [key, params || null]; lastExtra = extra ? 'overBest' : '';
+    elStatus.textContent = tr(key, params) + (extra ? tr('overBest') : '');
+  }
+
+  /* ---------- theme tokens for the canvas ---------- */
+  var T = {};
+  function readTokens() {
+    var cs = getComputedStyle(document.documentElement);
+    ['lcd', 'pixel', 'ghost', 'plate', 'plate-ink', 'pixelfont', 'body'].forEach(function (k) { T[k] = cs.getPropertyValue('--' + k).trim(); });
+  }
+
+  /* ---------- sound ---------- */
+  var actx = null;
+  var soundOn = load('snake-sound', '1') === '1';
+  function tone(freq, dur, type, gain, delay, slideTo) {
+    if (!soundOn) return;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      actx = actx || new AC();
+      if (actx.state === 'suspended') actx.resume();
+      var t0 = actx.currentTime + (delay || 0);
+      var o = actx.createOscillator(), g = actx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, t0);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+      g.gain.setValueAtTime(gain, t0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g); g.connect(actx.destination);
+      o.start(t0); o.stop(t0 + dur + 0.02);
+    } catch (e) { /* sound is optional */ }
+  }
+
+  /* ---------- state ---------- */
+  var speedKey = load('snake-speed', 'normal');
+  if (!BASE[speedKey]) speedKey = 'normal';
+  var walls = load('snake-walls', '1') === '1';
+  var bests = {};
+  try { bests = JSON.parse(load('snake-best', '{}')) || {}; } catch (e) { bests = {}; }
+
+  var snake = [];          // [[x, y], ...], head first
+  var dir = 1, queue = [];
+  var food = null, bonus = null;   // bonus: { x, y, left } with seconds left
+  var score = 0, eaten = 0, beat = false;
+  var state = 'ready';     // 'ready' | 'play' | 'pause' | 'over' | 'won'
+  var acc = 0, overAt = 0, deadAt = -1, clock = 0;
+  var kb = false, dpr = 1, scale = 1;
+
+  function bestKey() { return speedKey + (walls ? '-walls' : '-open'); }
+  function bestNow() { return bests[bestKey()] || 0; }
+  function speed() { return Math.min(SPEED_MAX, BASE[speedKey] + eaten * SPEED_STEP); }
+  function inGame() { return state === 'play' || state === 'pause' || (state === 'ready' && score > 0); }
+
+  function occupied(x, y, skipTail) {
+    for (var k = 0; k < snake.length - (skipTail ? 1 : 0); k++) if (snake[k][0] === x && snake[k][1] === y) return true;
+    return false;
+  }
+  function freeCell(exclude) {
+    var free = [];
+    for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) {
+      if (occupied(x, y, false)) continue;
+      if (exclude && exclude[0] === x && exclude[1] === y) continue;
+      free.push([x, y]);
+    }
+    return free.length ? free[(Math.random() * free.length) | 0] : null;
+  }
+
+  function newGame() {
+    var c = (N / 2) | 0;
+    snake = [[c, c], [c - 1, c], [c - 2, c]];
+    dir = 1; queue = []; bonus = null;
+    score = 0; eaten = 0; beat = false; acc = 0; deadAt = -1;
+    food = freeCell(null);
+    state = 'ready';
+    say('ready');
+    paintHud(); persist();
+  }
+  function start() {
+    if (state === 'over' || state === 'won') { if (performance.now() - overAt < 600) return; newGame(); }
+    if (state === 'ready' || state === 'pause') {
+      state = 'play'; acc = 0;
+      say(walls ? 'play' : 'playWrap');
+      paintHud();
+    }
+  }
+  function pause() {
+    if (state !== 'play') return;
+    state = 'pause';
+    say('paused');
+    paintHud(); persist();
+  }
+  // a turn waits in a short queue so that two quick presses between steps both count
+  function turn(d) {
+    if (state === 'over' || state === 'won') return;
+    var last = queue.length ? queue[queue.length - 1] : dir;
+    if (d !== last && (d + 2) % 4 !== last && queue.length < 3) queue.push(d);
+    if (state !== 'play') start();
+  }
+
+  function die(kind) {
+    state = 'over'; overAt = performance.now(); deadAt = clock;
+    say(kind === 'wall' ? 'overWall' : 'overSelf', { n: score }, beat);
+    tone(220, 0.16, 'square', 0.05); tone(160, 0.2, 'square', 0.05, 0.14); tone(100, 0.4, 'square', 0.05, 0.3);
+    paintHud(); persist();
+  }
+  function step() {
+    while (queue.length) {
+      var d = queue.shift();
+      if (d !== dir && (d + 2) % 4 !== dir) { dir = d; break; }
+    }
+    var hx = snake[0][0] + DX[dir], hy = snake[0][1] + DY[dir];
+    if (hx < 0 || hy < 0 || hx >= N || hy >= N) {
+      if (walls) { die('wall'); return; }
+      hx = (hx + N) % N; hy = (hy + N) % N;
+    }
+    var eatsFood = food && hx === food[0] && hy === food[1];
+    var eatsBonus = bonus && hx === bonus.x && hy === bonus.y;
+    var grows = eatsFood || eatsBonus;
+    // the tail moves away this step unless the snake grows, so stepping onto it is safe
+    if (occupied(hx, hy, !grows)) { die('self'); return; }
+    snake.unshift([hx, hy]);
+    if (!grows) snake.pop();
+    if (eatsFood) {
+      score += 1; eaten++;
+      tone(880, 0.05, 'square', 0.04); tone(1320, 0.06, 'square', 0.035, 0.05);
+      food = freeCell(bonus ? [bonus.x, bonus.y] : null);
+      if (eaten % BONUS_EVERY === 0) {
+        var b = freeCell(food);
+        if (b) { bonus = { x: b[0], y: b[1], left: BONUS_TIME }; say('bonus', { n: BONUS_POINTS }); }
+      }
+    }
+    if (eatsBonus) {
+      score += BONUS_POINTS; bonus = null;
+      [660, 880, 1100, 1320].forEach(function (f, n) { tone(f, 0.06, 'square', 0.04, n * 0.05); });
+      say(walls ? 'play' : 'playWrap');
+    }
+    if (grows) {
+      if (score > bestNow()) { bests[bestKey()] = score; beat = true; save('snake-best', JSON.stringify(bests)); }
+      if (!food) { win(); return; }
+      paintHud(); persist();
+    }
+  }
+  function win() {
+    state = 'won'; overAt = performance.now();
+    say('won', { n: score }, beat);
+    [523, 659, 784, 1047].forEach(function (f, n) { tone(f, 0.18, 'square', 0.05, n * 0.1); });
+    paintHud(); persist();
+  }
+
+  function update(dt) {
+    clock += dt;
+    if (state !== 'play') return;
+    if (bonus) {
+      bonus.left -= dt;
+      if (bonus.left <= 0) { bonus = null; if (lastSay[0] === 'bonus') say(walls ? 'play' : 'playWrap'); }
+    }
+    acc += dt;
+    var interval = 1 / speed();
+    // at most a few steps per frame, so a hiccup never makes the snake jump far
+    for (var n = 0; acc >= interval && n < 3 && state === 'play'; n++) { acc -= interval; step(); }
+    if (acc > interval) acc = interval;
+  }
+
+  /* ---------- HUD ---------- */
+  function press(id, on) { $(id).setAttribute('aria-pressed', on ? 'true' : 'false'); }
+  function paintHud() {
+    $('score').textContent = score;
+    $('len').textContent = snake.length;
+    $('best').textContent = bestNow();
+    $('padPause').textContent = tr(state === 'play' ? 'pause' : 'go');
+    press('spSlow', speedKey === 'slow'); press('spNormal', speedKey === 'normal'); press('spFast', speedKey === 'fast');
+    $('walls').textContent = tr(walls ? 'wallsOn' : 'wallsOff');
+    press('walls', walls);
+  }
+  function paintOpts() {
+    $('sound').textContent = tr(soundOn ? 'soundOn' : 'soundOff');
+    press('sound', soundOn);
+  }
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.title = tr('title');
+    $('title').textContent = tr('title');
+    $('newGame').textContent = tr('newGame');
+    $('scoreL').textContent = tr('score'); $('lenL').textContent = tr('len'); $('bestL').textContent = tr('best');
+    elScreen.setAttribute('aria-label', tr('field'));
+    $('speedSeg').setAttribute('aria-label', tr('speed'));
+    $('spSlow').textContent = tr('slow'); $('spNormal').textContent = tr('normal'); $('spFast').textContent = tr('fast');
+    var pads = { 0: 'up', 1: 'right', 2: 'down', 3: 'left' };
+    Array.prototype.forEach.call(document.querySelectorAll('#pad [data-dir]'), function (b) { b.setAttribute('aria-label', tr(pads[b.getAttribute('data-dir')])); });
+    $('note').textContent = tr('note');
+    press('langRu', lang === 'ru'); press('langEn', lang === 'en');
+    disarm(false);
+    elStatus.textContent = tr(lastSay[0], lastSay[1]) + (lastExtra ? tr(lastExtra) : '');
+    paintOpts(); paintHud();
+  }
+  function setLang(v) {
+    if (v === lang) return;
+    lang = v;
+    save('snake-lang', lang);
+    applyLang();
+  }
+
+  /* ---------- drawing: an LCD made of square pixels ---------- */
+  function resize() {
+    var w = cv.clientWidth || elScreen.clientWidth - 16 || 340;
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    scale = w / W;
+    cv.style.height = Math.round(w) + 'px';
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(w * dpr);
+  }
+  function block(x, y, inset) {
+    ctx.fillRect(x * CELL + inset, y * CELL + inset, CELL - 2 * inset, CELL - 2 * inset);
+  }
+  // little pictures on a 5 by 5 grid inside one cell
+  var APPLE = ['..#..', '.###.', '#####', '.###.', '..#..'];
+  var STAR = ['#...#', '.#.#.', '..#..', '.#.#.', '#...#'];
+  function sprite(x, y, rows) {
+    var u = (CELL - 4) / 5;
+    for (var r = 0; r < 5; r++) for (var c = 0; c < 5; c++) {
+      if (rows[r][c] === '#') ctx.fillRect(x * CELL + 2 + c * u + 0.4, y * CELL + 2 + r * u + 0.4, u - 0.8, u - 0.8);
+    }
+  }
+  function plate(main, sub) {
+    var cx = W / 2, cy = W / 2;
+    ctx.font = '14px ' + T.pixelfont;
+    var w1 = ctx.measureText(main).width;
+    ctx.font = '600 13px ' + T.body;
+    var w2 = ctx.measureText(sub).width;
+    var pw = Math.min(W - 24, Math.max(w1, w2) + 40), ph = 70;
+    ctx.fillStyle = T.plate;
+    ctx.fillRect(cx - pw / 2, cy - ph / 2, pw, ph);
+    ctx.fillStyle = T['plate-ink']; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '14px ' + T.pixelfont;
+    ctx.fillText(main, cx, cy - 11, pw - 16);
+    ctx.font = '600 13px ' + T.body;
+    ctx.fillText(sub, cx, cy + 17, pw - 16);
+  }
+  function draw() {
+    var k;
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+    ctx.fillStyle = T.lcd;
+    ctx.fillRect(0, 0, W, W);
+    // the faint grid of switched-off pixels
+    ctx.fillStyle = T.ghost;
+    for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) block(x, y, 1.5);
+    // without walls the edge is drawn dotted
+    if (!walls) {
+      ctx.fillStyle = T.pixel;
+      for (k = 0; k < W; k += 8) { ctx.fillRect(k, 0, 4, 1.5); ctx.fillRect(k, W - 1.5, 4, 1.5); ctx.fillRect(0, k, 1.5, 4); ctx.fillRect(W - 1.5, k, 1.5, 4); }
+    } else {
+      ctx.strokeStyle = T.pixel; ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, W - 2, W - 2);
+    }
+
+    ctx.fillStyle = T.pixel;
+    if (food) sprite(food[0], food[1], APPLE);
+    if (bonus && (bonus.left > 2 || Math.floor(clock * 6) % 2 === 0)) sprite(bonus.x, bonus.y, STAR);
+
+    // after a crash the snake blinks three times
+    var visible = deadAt < 0 || clock - deadAt > 1.2 || Math.floor((clock - deadAt) * 5) % 2 === 1;
+    if (visible) {
+      ctx.fillStyle = T.pixel;
+      for (k = snake.length - 1; k >= 0; k--) block(snake[k][0], snake[k][1], k === 0 ? 1 : 2);
+      // eyes: two lit pixels on the head, toward where it is going
+      var hx = snake[0][0] * CELL, hy = snake[0][1] * CELL, e = 3.2, a = 4, b = CELL - 4 - e;
+      ctx.fillStyle = T.lcd;
+      if (dir === 0) { ctx.fillRect(hx + a, hy + a, e, e); ctx.fillRect(hx + b, hy + a, e, e); }
+      else if (dir === 2) { ctx.fillRect(hx + a, hy + b, e, e); ctx.fillRect(hx + b, hy + b, e, e); }
+      else if (dir === 1) { ctx.fillRect(hx + b, hy + a, e, e); ctx.fillRect(hx + b, hy + b, e, e); }
+      else { ctx.fillRect(hx + a, hy + a, e, e); ctx.fillRect(hx + a, hy + b, e, e); }
+    }
+
+    if (state === 'ready') plate(score ? tr('plPause') : tr('plStart'), score ? tr('plPauseSub') : tr('plStartSub'));
+    else if (state === 'pause') plate(tr('plPause'), tr('plPauseSub'));
+    else if ((state === 'over' && clock - deadAt > 1.2) || state === 'won') plate(tr(state === 'won' ? 'plWon' : 'plOver') + ' · ' + score, tr('plAgain'));
+  }
+
+  var last = 0;
+  function frame(ts) {
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0);
+    last = ts;
+    update(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- input ---------- */
+  function setKb(on) { kb = on; elScreen.classList.toggle('kb', on); }
+  var KEYS = { ArrowUp: 0, KeyW: 0, ArrowRight: 1, KeyD: 1, ArrowDown: 2, KeyS: 2, ArrowLeft: 3, KeyA: 3 };
+  window.addEventListener('keydown', function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var onButton = e.target && e.target.tagName === 'BUTTON';
+    if (KEYS[e.code] !== undefined) {
+      // arrows scroll the page unless a game is on or the field has focus
+      if (state !== 'play' && state !== 'pause' && state !== 'ready' && document.activeElement !== elScreen) return;
+      if (e.code.indexOf('Key') === 0 && onButton) return;
+      turn(KEYS[e.code]); setKb(true); e.preventDefault();
+    } else if (e.code === 'Space' || e.code === 'KeyP' || e.code === 'Escape' || e.code === 'Enter') {
+      if (onButton && (e.code === 'Space' || e.code === 'Enter')) return;
+      if (state === 'play') pause(); else if (e.code !== 'Escape') start();
+      setKb(true); e.preventDefault();
+    }
+  });
+  window.addEventListener('blur', pause);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) pause(); });
+
+  // a swipe on the field turns; a tap without a swipe starts or goes on
+  var swipe = null;
+  cv.addEventListener('pointerdown', function (e) {
+    if (e.button !== undefined && e.button !== 0) return;
+    setKb(false);
+    swipe = { x: e.clientX, y: e.clientY, turned: false, id: e.pointerId };
+    try { cv.setPointerCapture(e.pointerId); } catch (err) { /* capture is a convenience */ }
+    e.preventDefault();
+  });
+  cv.addEventListener('pointermove', function (e) {
+    if (!swipe || swipe.id !== e.pointerId) return;
+    var dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 22) return;
+    turn(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0));
+    swipe.x = e.clientX; swipe.y = e.clientY; swipe.turned = true;
+  });
+  cv.addEventListener('pointerup', function (e) {
+    if (!swipe || swipe.id !== e.pointerId) return;
+    if (!swipe.turned && state !== 'play') start();
+    swipe = null;
+  });
+  cv.addEventListener('pointercancel', function () { swipe = null; });
+
+  Array.prototype.forEach.call(document.querySelectorAll('#pad [data-dir]'), function (b) {
+    b.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      setKb(false);
+      turn(+b.getAttribute('data-dir'));
+    });
+  });
+  $('padPause').addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    if (state === 'play') pause(); else start();
+  });
+
+  /* a game with points on the board asks once before it is thrown away */
+  var armed = null, armTimer = 0, sayBefore = null;
+  function disarm(restore) {
+    if (!armed) return;
+    armed.classList.remove('armed'); armed = null; clearTimeout(armTimer);
+    if (restore && sayBefore && lastSay[0] === 'confirm') say(sayBefore[0], sayBefore[1], sayBefore[2]);
+    sayBefore = null;
+  }
+  function guarded(btn, action) {
+    if (inGame() && score > 0 && armed !== btn) {
+      disarm(false);
+      if (state === 'play') pause();
+      armed = btn; btn.classList.add('armed');
+      if (lastSay[0] !== 'confirm') sayBefore = [lastSay[0], lastSay[1], lastExtra];
+      say('confirm', { n: score });
+      armTimer = setTimeout(function () { disarm(true); }, 3500);
+      return;
+    }
+    disarm(false);
+    action();
+  }
+  $('newGame').addEventListener('click', function () { guarded($('newGame'), newGame); });
+  function setSpeed(k, btn) {
+    if (k === speedKey) return;
+    guarded(btn, function () { speedKey = k; save('snake-speed', k); newGame(); });
+  }
+  $('spSlow').addEventListener('click', function () { setSpeed('slow', $('spSlow')); });
+  $('spNormal').addEventListener('click', function () { setSpeed('normal', $('spNormal')); });
+  $('spFast').addEventListener('click', function () { setSpeed('fast', $('spFast')); });
+  $('walls').addEventListener('click', function () {
+    guarded($('walls'), function () { walls = !walls; save('snake-walls', walls ? '1' : '0'); newGame(); });
+  });
+  $('sound').addEventListener('click', function () {
+    soundOn = !soundOn; save('snake-sound', soundOn ? '1' : '0'); paintOpts();
+    if (soundOn) tone(880, 0.08, 'square', 0.05);
+  });
+  $('langRu').addEventListener('click', function () { setLang('ru'); });
+  $('langEn').addEventListener('click', function () { setLang('en'); });
+
+  /* ---------- persistence: an unfinished game comes back paused ---------- */
+  function snapshot() {
+    if (!(state === 'play' || state === 'pause' || state === 'ready') || !score) return {};
+    return { snake: snake.map(function (p) { return p.slice(); }), dir: dir, food: food, score: score, eaten: eaten, beat: beat, speed: speedKey, walls: walls };
+  }
+  function persist() { save('snake-state', JSON.stringify(snapshot())); }
+  function cellOk(p) { return Array.isArray(p) && p.length === 2 && p[0] === (p[0] | 0) && p[1] === (p[1] | 0) && p[0] >= 0 && p[1] >= 0 && p[0] < N && p[1] < N; }
+  function restore(d) {
+    if (!d || !Array.isArray(d.snake) || d.snake.length < 3 || d.snake.length > N * N || !d.snake.every(cellOk)) return false;
+    if (!(d.dir >= 0 && d.dir <= 3) || !cellOk(d.food) || !(d.score > 0) || !(d.eaten >= 0) || !BASE[d.speed]) return false;
+    var seen = {};
+    for (var k = 0; k < d.snake.length; k++) {
+      var key = d.snake[k][0] + ',' + d.snake[k][1];
+      if (seen[key]) return false;
+      seen[key] = 1;
+      // every segment must touch the next one (through the edge when there are no walls)
+      if (k) {
+        var ax = d.snake[k - 1][0], ay = d.snake[k - 1][1], bx = d.snake[k][0], by = d.snake[k][1];
+        var ddx = Math.abs(ax - bx), ddy = Math.abs(ay - by);
+        if (!d.walls) { ddx = Math.min(ddx, N - ddx); ddy = Math.min(ddy, N - ddy); }
+        if (ddx + ddy !== 1) return false;
+      }
+    }
+    if (seen[d.food[0] + ',' + d.food[1]]) return false;
+    snake = d.snake.map(function (p) { return p.slice(); });
+    dir = d.dir; food = d.food.slice(); score = Math.floor(d.score); eaten = Math.floor(d.eaten); beat = !!d.beat;
+    speedKey = d.speed; walls = !!d.walls; bonus = null; queue = []; acc = 0; deadAt = -1;
+    state = 'ready';
+    say('resumed', { n: score });
+    return true;
+  }
+
+  /* ---------- boot ---------- */
+  function boot(data) {
+    if (!data || !data.snake) {
+      try { data = JSON.parse(load('snake-state', 'null')); } catch (e) { data = null; }
+    }
+    readTokens();
+    resize();
+    if (!restore(data)) newGame();
+    applyLang();
+    requestAnimationFrame(frame);
+  }
+
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', readTokens);
+  }
+  new MutationObserver(readTokens).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(elScreen);
+  window.addEventListener('resize', resize);
+
+  var hot = window.claude && window.claude.hot;
+  try { if (hot && hot.snapshot) hot.snapshot(snapshot); } catch (e) { /* no viewer hook */ }
+  if (hot && hot.ready) hot.ready(boot); else boot((hot && hot.data) || null);
+})();
+</script>
+<!-- Visit counter (GoatCounter, no cookies). Keep this block when the page is rebuilt. -->
+<script data-goatcounter="https://posoxai.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</body>
+</html>
